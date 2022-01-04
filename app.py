@@ -113,6 +113,14 @@ def cleanup(t_input, case, argument=None):
             return t_time
 
 
+def add_one(t_number, last_time_timeout):
+    if last_time_timeout:
+        t_number += 1
+        return t_number
+    else:
+        return 0
+
+
 ##### CONFIGURATION #####
 
 while True:
@@ -200,26 +208,51 @@ while True:
 
     is_configuration_successful = a_question(questions["confirm_config"], errors["y/n input"], "y/n")
     if is_configuration_successful:
+        print("Pinging ...")
         break
     else:
         address_list = []
         custom_address_list = []
 
 ##### PROCESSOR #####
+time_outs = 0
+timed_out = False
 while True:
     ip_id = 0
     for x in address_list:
         a_ping = ping(x, verbose=False, count = 1)
         analyzed = analyze_response(str(a_ping), address_list[ip_id])
         ip_id += 1
+        
+        logfile = open_log_file(logfile_path)
         if analyzed[1] >= ping_threshold:
-            print(f"Ping higher than {ping_threshold} to {analyzed[0]} at {ctime()} is {analyzed[1]}ms.")
-            logfile = open_log_file(logfile_path)
-            if analyzed[1] == 2000.00:
+            if analyzed[1] < 2000:
+                print(f"Ping higher than {ping_threshold} to {analyzed[0]} at {ctime()} is {analyzed[1]}ms.")
+                logfile.write(f"""{ctime()} Ping to {analyzed[0]} is {analyzed[1]}ms.
+""")
+                if analyzed[1] >= 1000:
+                    timed_out = True
+                else:
+                    timed_out = False
+            else:
+                print(f"Ping to {analyzed[0]} at {ctime()} timed out.")
                 logfile.write(f"""{ctime()} Ping to {analyzed[0]} timed out.
 """)
-            else:
-                logfile.write(f"""{ctime()} Ping to {analyzed[0]} is {analyzed[1]}.
-""")
+                timed_out = True
 
+            time_outs = add_one(time_outs, timed_out)
+
+    logfile = open_log_file(logfile_path)
+    if time_outs == len(address_list):
+        print(f"CRITICAL!!!! ALL SERVERS TIMED OUT AT {ctime()}")
+        logfile.write(f"""{ctime()} CRITICAL!!!! ALL SERVERS TIMED OUT
+""")
+    elif time_outs >= len(address_list) / 2:
+        print(f"Attention!! At least half of the servers ({time_outs} servers) timed out at {ctime()}")
+        logfile.write(f"""{ctime()} Attention!! At least half of the servers ({time_outs} servers) timed out
+""")  
+
+    time_outs = 0
+    timed_out = False
+        
     sleep(ping_freq) 
