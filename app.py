@@ -2,8 +2,7 @@ import os
 import sys
 import getpass
 import re
-from time import sleep
-from time import ctime
+from time import ctime, time, sleep, localtime, mktime
 from pythonping import ping
 
 address_list = []
@@ -121,6 +120,22 @@ def add_one(t_number, last_time_timeout):
         return 0
 
 
+def checkup(t_tick):
+    if t_tick >= 100:
+        print(f"{ctime()} the app is stable.")
+        return 0
+    else:
+        return t_tick + 1
+
+
+def calc_time(t_arg): # Not needed after all
+    t_now = localtime()
+    t_secs = mktime(t_now)
+    t_desire = ctime(t_secs + t_arg)
+    return
+
+
+
 ##### CONFIGURATION #####
 
 while True:
@@ -217,6 +232,7 @@ while True:
 ##### PROCESSOR #####
 time_outs = 0
 timed_out = False
+tick = 0
 while True:
     ip_id = 0
     for x in address_list:
@@ -255,4 +271,5 @@ while True:
     time_outs = 0
     timed_out = False
         
+    tick = checkup(tick)
     sleep(ping_freq) 
