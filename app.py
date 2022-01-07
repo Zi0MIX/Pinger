@@ -120,8 +120,33 @@ def add_one(t_number, last_time_timeout):
         return 0
 
 
-def checkup(t_tick):
-    if t_tick >= 100:
+def checkup(t_tick, t_ping_freq):
+    if t_ping_freq >= 1000 and t_ping_freq < 10000:
+        t_div = 100
+    elif t_ping_freq >= 10000:
+        t_div = 1000
+    else:
+        t_div = 10
+
+    t_count = 1
+    if t_ping_freq <= 10:
+        t_sleep = 100 * ((12 - t_ping_freq) // 2)
+    elif t_ping_freq >= 60 and t_ping_freq <= 300:
+        t_sleep = 36 - (t_ping_freq // 10)
+    elif t_ping_freq > 300:
+        x = t_ping_freq
+        while x > 2:
+            x = (x // t_div) - (t_div // 3)
+            t_count =+ 1
+        t_result = 24 - t_count
+        if t_result > 1:
+            t_sleep = t_result // 2
+        else:
+            t_sleep = 1
+    else:
+        t_sleep = 750
+        
+    if t_tick >= t_sleep:
         print(f"{ctime()} the app is stable.")
         return 0
     else:
