@@ -145,7 +145,7 @@ def checkup(t_tick, t_ping_freq):
             t_sleep = 1
     else:
         t_sleep = 750
-        
+
     if t_tick >= t_sleep:
         print(f"{ctime()} the app is stable.")
         return 0
@@ -296,5 +296,5 @@ while True:
     time_outs = 0
     timed_out = False
         
-    tick = checkup(tick)
+    tick = checkup(tick, ping_freq)
     sleep(ping_freq) 
