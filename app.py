@@ -1,7 +1,4 @@
-import os
-import sys
-import getpass
-import re
+import os, sys, getpass, re, subprocess
 from time import ctime, time, sleep, localtime, mktime
 from pythonping import ping
 
@@ -79,15 +76,29 @@ def open_log_file(default_path):
 
 
 def analyze_response(response, ip_in):
-    if re.search("Request timed out", response):
-        timeout = True
-    elif re.search("Reply from", response):
-        timeout = False
+    reg_timeout = re.compile("Request timed out")
+    reg_reply = re.compile("Reply from")
+    if type(response) is str:
+        arg = 2
+        if re.search(reg_timeout, response):
+            timeout = True
+        elif re.search(reg_reply, response):
+            timeout = False
+    else:
+        arg = 1
+        for x in response:
+            print(x)
+            if re.search(reg_timeout, x):
+                timeout = True
+                break
+            elif re.search(reg_reply, x):
+                timeout = False
+                break
     if timeout:
         ip, time = ip_in, 2000.00
     elif not timeout: 
-        ip = cleanup(response, "ip", 1)
-        time = cleanup(response, "time", 1)
+        ip = cleanup(response, "ip", arg)
+        time = cleanup(response, "time", 0)
         if str(ip) != str(ip_in):
             print(f"""{errors["analytics"]} code ip_not_equal, ip = {ip}, ip_in = {ip_in}""")
             return
@@ -98,18 +109,18 @@ def analyze_response(response, ip_in):
     return [str(ip), float(time)]
 
 
-def cleanup(t_input, case, argument=None):
-    if argument == 1:
-        t_reg = re.split(" ", t_input)
-        if case == "ip":
-            t_ip = t_reg[2]
+def cleanup(t_input, case, argument=2):
+    t_reg = re.split(" ", t_input)
+    if case == "ip":
+        t_ip = t_reg[argument]
+        if argument == 2:
             t_ip = t_ip.replace(",", "")
-            return t_ip
-        elif case == "time":
-            t_time = t_reg[6]
-            t_time = t_time.replace("ms", "")
-            t_time = t_time.replace("Round", "")
-            return t_time
+        return t_ip
+    elif case == "time":
+        t_time = t_reg[6]
+        t_time = t_time.replace("ms", "")
+        t_time = t_time.replace("Round", "")
+        return t_time
 
 
 def add_one(t_number, last_time_timeout):
@@ -258,43 +269,77 @@ while True:
 time_outs = 0
 timed_out = False
 tick = 0
+first_run = True
+
+bruh = False
+while True:
+    firewall_ping = subprocess.Popen("ping 8.8.8.8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
+    firewall_pull = firewall_ping.communicate()
+    for x in firewall_pull:
+        if re.search(r"(100% loss)", x):
+            if not bruh:
+                bruh = True
+                sleep(2)
+                continue
+            test_success = False
+    else:
+        test_success = True
+    break
+
+firewall_active = False
+logfile = open_log_file(logfile_path)
+a_ping = []
 while True:
     ip_id = 0
     for x in address_list:
-        a_ping = ping(x, verbose=False, count = 1)
+        if not firewall_active:
+            a_ping = ping(x, verbose=False, count=1, payload="32")
+        else:
+            ping_temp = subprocess.Popen(f"ping -n 1 {x}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
+            a_ping = ping_temp.communicate()
+
         analyzed = analyze_response(str(a_ping), address_list[ip_id])
-        ip_id += 1
+        ip_id += 1 
         
-        logfile = open_log_file(logfile_path)
         if analyzed[1] >= ping_threshold:
             if analyzed[1] < 2000:
                 print(f"Ping higher than {ping_threshold} to {analyzed[0]} at {ctime()} is {analyzed[1]}ms.")
-                logfile.write(f"""{ctime()} Ping to {analyzed[0]} is {analyzed[1]}ms.
-""")
+                logfile.write(f"""{ctime()} Ping to {analyzed[0]} is {analyzed[1]}ms. """)
                 if analyzed[1] >= 1000:
                     timed_out = True
                 else:
                     timed_out = False
             else:
                 print(f"Ping to {analyzed[0]} at {ctime()} timed out.")
-                logfile.write(f"""{ctime()} Ping to {analyzed[0]} timed out.
-""")
+                logfile.write(f"""{ctime()} Ping to {analyzed[0]} timed out. """)
                 timed_out = True
 
             time_outs = add_one(time_outs, timed_out)
 
-    logfile = open_log_file(logfile_path)
+    if first_run and test_success:
+        if analyzed[1] >= 2000:
+            print("The program is most likely blocked by either local or network firewall.")
+            firewall_choice = input("Would you like to continue using alternative method? (Y/N) ").upper()
+            if firewall_choice == "N":
+                sys.exit()
+            else:
+                firewall_active = True
+                first_run = False
+                time_outs = 0 
+                continue
+
     if time_outs == len(address_list):
         print(f"CRITICAL!!!! ALL SERVERS TIMED OUT AT {ctime()}")
-        logfile.write(f"""{ctime()} CRITICAL!!!! ALL SERVERS TIMED OUT
-""")
+        logfile.write(f"""{ctime()} CRITICAL!!!! ALL SERVERS TIMED OUT """)
     elif time_outs >= len(address_list) / 2:
         print(f"Attention!! At least half of the servers ({time_outs} servers) timed out at {ctime()}")
-        logfile.write(f"""{ctime()} Attention!! At least half of the servers ({time_outs} servers) timed out
-""")  
+        logfile.write(f"""{ctime()} Attention!! At least half of the servers ({time_outs} servers) timed out """)  
 
     time_outs = 0
     timed_out = False
         
+    if first_run:
+        first_run = False
+
     tick = checkup(tick, ping_freq)
     sleep(ping_freq) 
