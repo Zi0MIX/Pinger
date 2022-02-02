@@ -75,36 +75,30 @@ def open_log_file(default_path):
     return t_log_file
 
 
-def analyze_response(response, ip_in):
+def analyze_response(response, ip_in, firewall):
     reg_timeout = re.compile("Request timed out")
     reg_reply = re.compile("Reply from")
-    if type(response) is str:
-        arg = 2
-        if re.search(reg_timeout, response):
-            timeout = True
-        elif re.search(reg_reply, response):
-            timeout = False
-    else:
+
+    arg = 2
+    if firewall:
         arg = 1
-        for x in response:
-            print(x)
-            if re.search(reg_timeout, x):
-                timeout = True
-                break
-            elif re.search(reg_reply, x):
-                timeout = False
-                break
+        
+    if re.search(reg_timeout, response):
+        timeout = True
+    elif re.search(reg_reply, response):
+        timeout = False
+
     if timeout:
         ip, time = ip_in, 2000.00
     elif not timeout: 
         ip = cleanup(response, "ip", arg)
-        time = cleanup(response, "time", 0)
+        time = cleanup(response, "time", arg)
         if str(ip) != str(ip_in):
             print(f"""{errors["analytics"]} code ip_not_equal, ip = {ip}, ip_in = {ip_in}""")
-            return
+            return 0
     else:
         print(f"""{errors["analytics"]} code unknown_result""")
-        return
+        return 0
     
     return [str(ip), float(time)]
 
@@ -117,9 +111,16 @@ def cleanup(t_input, case, argument=2):
             t_ip = t_ip.replace(",", "")
         return t_ip
     elif case == "time":
-        t_time = t_reg[6]
+        # print(t_reg)
+        pos = 6
+        if argument == 1:
+            pos = 10
+        t_time = t_reg[pos]
         t_time = t_time.replace("ms", "")
-        t_time = t_time.replace("Round", "")
+        if argument == 1:
+            t_time = t_time.replace("time=", "")
+        elif argument == 2:
+            t_time = t_time.replace("Round", "")
         return t_time
 
 
@@ -259,7 +260,6 @@ while True:
 
     is_configuration_successful = a_question(questions["confirm_config"], errors["y/n input"], "y/n")
     if is_configuration_successful:
-        print("Pinging ...")
         break
     else:
         address_list = []
@@ -269,9 +269,10 @@ while True:
 time_outs = 0
 timed_out = False
 tick = 0
-first_run = True
 
+test_timeouts = []
 bruh = False
+print("Testing ...")
 while True:
     firewall_ping = subprocess.Popen("ping 8.8.8.8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
     firewall_pull = firewall_ping.communicate()
@@ -282,13 +283,42 @@ while True:
                 sleep(2)
                 continue
             test_success = False
+            break
     else:
         test_success = True
-    break
+        break
 
-firewall_active = False
+ip_id = 0
+for x in address_list:
+    a_ping = ping(x, verbose=False, count=1, payload="32")
+    analyzed = analyze_response(str(a_ping), address_list[ip_id], False)
+    ip_id += 1
+
+    if analyzed[1] > 999:
+        timed_out = True
+    else:
+        timed_out = False
+    test_timeouts.append(timed_out)
+    
+falses = 0
+for x in test_timeouts:
+    if x:
+        falses += 1
+
+if falses < 4:
+    firewall_active = False
+else:
+    if test_success:
+        print("The program is most likely blocked by either local or network firewall.")
+        firewall_choice = input("Would you like to continue using alternative method? (Y/N) ").upper()
+        print("Do note, alternative method may become unstable over long period of time, please monitor the program.")
+        if firewall_choice == "N":
+            sys.exit()
+        else:
+            firewall_active = True
+
 logfile = open_log_file(logfile_path)
-a_ping = []
+print("Pinging ...")
 while True:
     ip_id = 0
     for x in address_list:
@@ -298,8 +328,12 @@ while True:
             ping_temp = subprocess.Popen(f"ping -n 1 {x}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
             a_ping = ping_temp.communicate()
 
-        analyzed = analyze_response(str(a_ping), address_list[ip_id])
-        ip_id += 1 
+        analyzed = analyze_response(str(a_ping), address_list[ip_id], firewall_active)
+        ip_id += 1
+
+        if analyzed == 0:
+            input("Press ENTER to close the program")
+            sys.exit()
         
         if analyzed[1] >= ping_threshold:
             if analyzed[1] < 2000:
@@ -316,18 +350,6 @@ while True:
 
             time_outs = add_one(time_outs, timed_out)
 
-    if first_run and test_success:
-        if analyzed[1] >= 2000:
-            print("The program is most likely blocked by either local or network firewall.")
-            firewall_choice = input("Would you like to continue using alternative method? (Y/N) ").upper()
-            if firewall_choice == "N":
-                sys.exit()
-            else:
-                firewall_active = True
-                first_run = False
-                time_outs = 0 
-                continue
-
     if time_outs == len(address_list):
         print(f"CRITICAL!!!! ALL SERVERS TIMED OUT AT {ctime()}")
         logfile.write(f"""{ctime()} CRITICAL!!!! ALL SERVERS TIMED OUT """)
@@ -337,9 +359,6 @@ while True:
 
     time_outs = 0
     timed_out = False
-        
-    if first_run:
-        first_run = False
 
     tick = checkup(tick, ping_freq)
     sleep(ping_freq) 
