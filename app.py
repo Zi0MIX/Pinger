@@ -15,9 +15,9 @@ definitions = {
 defaults = {
     "virgin_list": [],
     "address_list": ["8.8.8.8", "1.1.1.1", "208.67.222.222", "9.9.9.9"], # DNS providers, in order Google, Cloudflare, Cisco and Quad9
-    "win_logfile_path": rf"C:\Users\{user}\Documents\Pinger",
+    "win_logfile_path": f"C:\\Users\\{user}\\Documents\\Pinger",
     "sleep": 2,
-    "ping_threshold": 50.00,
+    "ping_threshold": 80.00,
 }
 
 errors = {
@@ -27,14 +27,6 @@ errors = {
     "ping": "Something went wrong, not all pings were sent.",
     "analytics": "An error occured while analyzing the result.",
     "argument": "Provided argument is wrong, try again!",
-}
-
-questions = {
-    "def_address": "Would you like to use default addresses? (Y/N) ",
-    "def_sleep": "Would you like to use default time between pings? (Y/N) ",
-    "def_logfile": "Would you like to use default logfile location? (Y/N) ",
-    "def_threshold": "Would you like to use default limit, above which pings get logged? (Y/N) ",
-    "confirm_config": "Would you like to proceed or would you like to configure again? (Y to continue, N to config) ",
 }
 
 ##### GENERAL FUNCTIONS #####
@@ -132,51 +124,28 @@ def add_one(t_number, last_time_timeout):
         return 0
 
 
-def checkup(t_tick, t_ping_freq):
-    if t_ping_freq >= 1000 and t_ping_freq < 10000:
-        t_div = 100
-    elif t_ping_freq >= 10000:
-        t_div = 1000
-    else:
-        t_div = 10
+def checkup(t_time):
+    if t_time == 0.0:
+        t_time = time()
 
-    t_count = 1
-    if t_ping_freq <= 10:
-        t_sleep = 100 * ((12 - t_ping_freq) // 2)
-    elif t_ping_freq >= 60 and t_ping_freq <= 300:
-        t_sleep = 36 - (t_ping_freq // 10)
-    elif t_ping_freq > 300:
-        x = t_ping_freq
-        while x > 2:
-            x = (x // t_div) - (t_div // 3)
-            t_count =+ 1
-        t_result = 24 - t_count
-        if t_result > 1:
-            t_sleep = t_result // 2
-        else:
-            t_sleep = 1
-    else:
-        t_sleep = 750
-
-    if t_tick >= t_sleep:
+    if time() >= t_time + 1800:
         print(f"{ctime()} the app is stable.")
-        return 0
+        return time()
     else:
-        return t_tick + 1
+        return t_time
 
 
-def calc_time(t_arg): # Not needed after all
-    t_now = localtime()
-    t_secs = mktime(t_now)
-    t_desire = ctime(t_secs + t_arg)
-    return
-
+# def calc_time(t_arg): 
+#     t_now = localtime()
+#     t_secs = mktime(t_now)
+#     t_desire = ctime(t_secs + t_arg)
+#     return
 
 
 ##### CONFIGURATION #####
 
 while True:
-    use_default_address = a_question(questions["def_address"], errors["y/n input"], "y/n")
+    use_default_address = a_question("Would you like to use default addresses? (Y/N) ", errors["y/n input"], "y/n")
 
     first_address = True
     if use_default_address: 
@@ -212,7 +181,7 @@ while True:
                 print(errors["max_addresses"])
                 break
 
-    use_default_sleep = a_question(questions["def_sleep"], errors["y/n input"], "y/n")
+    use_default_sleep = a_question("Would you like to use default time between pings? (Y/N) ", errors["y/n input"], "y/n")
     if not use_default_sleep:
         while True:
             print("Provide time between pings in seconds (range 1 to 300)")
@@ -224,13 +193,13 @@ while True:
     else:
         ping_freq = defaults["sleep"]
 
-    use_default_logfile = True #a_question(questions["def_logfile"], errors["y/n input"], "y/n")
+    use_default_logfile = True #a_question("Would you like to use default logfile location? (Y/N) ", errors["y/n input"], "y/n")
     if not use_default_logfile:
         pass # Maybe one day
     else:
         logfile_path = defaults["win_logfile_path"]
     
-    use_default_threshold = a_question(questions["def_threshold"], errors["y/n input"], "y/n")
+    use_default_threshold = a_question("Would you like to use default limit, above which pings get logged? (Y/N) ", errors["y/n input"], "y/n")
     if not use_default_threshold:
         while True:
             print("Type in new ping limit (between 1 and 1999).")
@@ -258,7 +227,7 @@ while True:
     for x in address_list:
         print(x)
 
-    is_configuration_successful = a_question(questions["confirm_config"], errors["y/n input"], "y/n")
+    is_configuration_successful = a_question("Would you like to proceed or would you like to configure again? (Y to continue, N to config) ", errors["y/n input"], "y/n")
     if is_configuration_successful:
         break
     else:
@@ -268,7 +237,7 @@ while True:
 ##### PROCESSOR #####
 time_outs = 0
 timed_out = False
-tick = 0
+timestamp = 0.0
 
 test_timeouts = []
 bruh = False
@@ -318,7 +287,8 @@ else:
             firewall_active = True
 
 logfile = open_log_file(logfile_path)
-print("Pinging ...")
+print("""Pinging ...""")
+print(f"""Results will be saved in a log in {defaults["win_logfile_path"]}\\event log.txt""")
 while True:
     ip_id = 0
     for x in address_list:
@@ -360,5 +330,5 @@ while True:
     time_outs = 0
     timed_out = False
 
-    tick = checkup(tick, ping_freq)
-    sleep(ping_freq) 
+    timestamp = checkup(timestamp)
+    sleep(ping_freq)
