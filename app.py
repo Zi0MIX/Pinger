@@ -293,7 +293,12 @@ while True:
     ip_id = 0
     for x in address_list:
         if not firewall_active:
-            a_ping = ping(x, verbose=False, count=1, payload="32")
+            try:
+                a_ping = ping(x, verbose=False, count=1, payload="32")
+            except OSError:
+                print("Network change detected.")
+                sleep(10)
+                continue
         else:
             ping_temp = subprocess.Popen(f"ping -n 1 {x}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
             a_ping = ping_temp.communicate()
