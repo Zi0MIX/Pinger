@@ -41,7 +41,16 @@ errors = {
 
 class Config:
     def __init__(self):
-        self.path = os.path.dirname(__file__)
+        self.path = str(sys.executable)
+        list_path = self.path.split("\\")
+        exe_name = list_path[-1]
+        exe_index = self.path.rfind("\\")
+        if exe_name == "python.exe":
+            self.path = os.path.dirname(__file__)
+        else:
+            self.path = self.path[:exe_index]
+        # input(f"{self.path}, name = {exe_name}")
+
 
 
     def open_cfg(self):
@@ -52,9 +61,12 @@ class Config:
                 data = configuration_file.read()
                 break
             except FileNotFoundError:
-                Config.build_cfg()
+                Config().build_cfg()
             finally:
-                configuration_file.close()
+                try:
+                    configuration_file.close()
+                except UnboundLocalError:
+                    pass
         return data
 
     
@@ -124,10 +136,10 @@ ping_threshold = "{read_file[3]}"
         return str(t_properties[read_line - 1])
 
 
-def read_arguments(input, split1="\n", split2="\""):
+def read_arguments(t_input, split1="\n", split2="\""):
     """Function serves as a slave to read_cfg, it'll pull arguments from config lines."""
     t_list = []
-    t_fulldata = str(input).split(split1)
+    t_fulldata = str(t_input).split(split1)
     for x in t_fulldata:
         t_value = x.split(split2)
         if len(t_value) != 3:
@@ -254,6 +266,7 @@ def checkup(t_time):
 while True:
     use_config = ask("Would you like to use config file? (Y/N) ", errors['input'])
     if use_config:
+        Config().open_cfg()
         Config().verify_cfg()
 
     # Address list
