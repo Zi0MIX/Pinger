@@ -8,11 +8,10 @@ An app to monitor network stability
 - Check past readings in the log file.
 - The program is immune to firewalls in the users network. (to certain extent)
 - Program will make occasional prints if there aren't any logged events (helps with stability control)
-- Program will print a custom warning if at least half of the addresses timed out
+- Program will print a custom warning if at least half of the addresses timed out (only if 3 or more addresses are being pinged.)
+- Use config file to preset your settings.
 
 *due to the way program is sending pings, it'll send a ping after it receives an answer from the previous one. Simultaneous pings aren't being considered for now (but are the option further down the line)
 
 # Planned features
 - Linux support
-- Config support
-- Custom path to the log file
