@@ -1,4 +1,5 @@
 from distutils.log import debug
+from itertools import count
 import os, sys, getpass, re, subprocess
 from time import ctime, time, sleep
 from pythonping import ping
@@ -12,7 +13,7 @@ reg_reply = re.compile("Reply from")
 definitions = {
     "ping_freq": range(1, 301),
     "ping_threshold": range(1, 2000), # Exclude 2000 as that's the timeout code
-    "cfg_len": 5,   # Change if config changes
+    "cfg_len": 6,   # Change if config changes
     "forbidden_symbols": ["*", "?", "\"", "<", ">", "|"],
     "drive_letters": ["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 }
@@ -24,6 +25,7 @@ defaults = {
     "sleep": 2,
     "ping_threshold": 80.00,
     "print_all": False,
+    "print_average": False,
 }
 
 errors = {
@@ -83,7 +85,6 @@ class Config:
     def verify_cfg(self):
         """Function will analyze config file and if it finds that the amount of lines doesn't match, it'll force default settings in the config. If it finds issues with logfile path, it'll attempt to fix it."""
         read_file = Config().read_cfg(1, return_all=True)
-        # print(self.path)
         with open(f"{self.path}\\config.cfg" , "w") as f:
             # print(f"len of cfg {len(Config().read_cfg(1, return_all=True))}")
             if len(read_file) != definitions["cfg_len"]:
@@ -96,18 +97,13 @@ class Config:
                     t_addresses += f"{x} "
                 t_addresses = t_addresses[:-1]
 
-                # Format printall
-                if defaults["print_all"]:
-                    t_print_all = 1
-                else:
-                    t_print_all = 0
-
                 # Change if config changes
                 t_clean_cfg = f"""logfile_path = "{defaults["win_logfile_path"]}"
 addresses = "{t_addresses}"
 sleep = "{defaults["sleep"]}"
 ping_threshold = "{defaults["ping_threshold"]}"
-print_all = "{t_print_all}"
+print_all = "{convert_int_bool(defaults["print_all"])}"
+print_average = "{convert_int_bool(defaults["print_average"])}"
 """
                 f.write(t_clean_cfg)
                 f.close()
@@ -135,6 +131,7 @@ addresses = "{read_file[1]}"
 sleep = "{read_file[2]}"
 ping_threshold = "{read_file[3]}"
 print_all = "{read_file[4]}"
+print_average = "{read_file[5]}"
 """
                 f.write(t_overwrite_cfg)
                 f.close()
@@ -147,7 +144,7 @@ print_all = "{read_file[4]}"
         with open(f"{self.path}\\config.cfg" , "r", encoding="utf-8") as f:
             t_cfg = f.read()
             t_properties = read_arguments(t_cfg)
-            print(len(t_properties))
+            # print(len(t_properties))
         if return_all:
             return t_properties
         return str(t_properties[read_line - 1])
@@ -269,7 +266,7 @@ def add_one(t_number, last_time_timeout):
         return 0
 
 
-def checkup(t_time, t_wait=600):
+def checkup(t_time, t_average, t_wait=600):
     """Function will make a print if nothing's been printed for last 10 minutes. It'll return True and a timestamp of the print. If print wasn't executed, function will return None."""
     readable_wait = t_wait * 60     # Convert to minutes
     a_string = "minutes"
@@ -277,11 +274,40 @@ def checkup(t_time, t_wait=600):
         readable_wait = t_wait
         a_string = "seconds"
 
-    if time() >= t_time + t_wait:
+    if time() >= t_time + t_wait and t_average == 0:
         print(f"{ctime()} stability check - no prints for past {readable_wait} {a_string}.")
+        return [True, time()]
+    elif time() >= t_time + 300 and t_average > 0:
+        print(f"{ctime()} your current ping average is {t_average}.")
         return [True, time()]
     else:
         return [False, None]
+
+
+def convert_int_bool(t_input):
+    """Function will convert bool to int and int to bool"""
+    if isinstance(t_input, bool):
+        if t_input:
+            return 1
+        return 0
+
+    elif isinstance(t_input, str):
+        try:
+            t_input = int(t_input)
+            if t_input == 0:
+                return False
+            else:
+                return True
+        except ValueError:
+            return None
+
+    elif isinstance(t_input, int):
+        if t_input == 0:
+            return False
+        else:
+            return True
+
+    return None
 
 
 ##### CONFIGURATION #####
@@ -404,25 +430,26 @@ while True:
 
     # Print All
     if use_config:
-        wrong_value_in_cfg = False
-        try:
-            temp_do_print = int(Config().read_cfg(5))
-        except ValueError:
-            wrong_value_in_cfg = True
-
-        if temp_do_print not in [0, 1]:
-            wrong_value_in_cfg = True
-
-        if wrong_value_in_cfg:
+        do_print_all = convert_int_bool(Config().read_cfg(5))
+        if do_print_all == None:
             do_print_all = defaults['print_all']
             print("Inproper value in the config. Applying default 'print_all' value.")
-        else:
-            do_print_all = False
-            if temp_do_print == 1:
-                do_print_all = True
         
     else:
         do_print_all = ask("Would you like to see all results even below set limit? (Y/N) ", errors['y/n input'])
+
+    # Print averages
+    if not do_print_all:    # Pointless to have it run if all pings are printed
+        if use_config:
+            print_averages = convert_int_bool(Config().read_cfg(6))
+            if print_averages == None:
+                print_averages = defaults['print_average']
+                print("Inproper value in the config. Applying default 'print_average' value.")
+
+        else:
+            print_averages = ask("Would you like to see information about average ping? (Y/N) ", errors['y/n input']) 
+    else:
+        print_averages = False
 
     # Final     
     if use_default_address:
@@ -455,6 +482,8 @@ while True:
 time_outs = 0
 timed_out = False
 print_timestamp = time()
+count_pings = 0
+ping_total = 0
 
 test_timeouts = []
 bruh = False
@@ -536,6 +565,17 @@ while True:
         if analyzed == 0:
             input("Press ENTER to close the program")
             sys.exit()
+
+        if print_averages:
+            if count_pings > 999999:
+                print("Resetting average calculator.")
+                count_pings = 0
+                ping_total = 0
+            count_pings += 1
+            ping_total += int(analyzed[1])  # It's a float, change to int
+            ping_average = ping_total // count_pings
+        else:
+            ping_average = 0
         
         if analyzed[1] >= ping_threshold:   # Print and log high ping / timeout events
             if analyzed[1] < 2000:
@@ -573,7 +613,7 @@ while True:
     timed_out = False
 
     if not do_print_all:
-        checkup_out = checkup(print_timestamp)
+        checkup_out = checkup(print_timestamp, ping_average)
         if checkup_out[0]:
             print_timestamp = checkup_out[1]
     

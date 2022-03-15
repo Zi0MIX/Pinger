@@ -13,16 +13,16 @@ An app to monitor network stability
 
 *due to the way program is sending pings, it'll send a ping after it receives an answer from the previous one. Simultaneous pings aren't being considered for now (but are the option further down the line)
 
+# 1.3 incoming
+- Adjust stability message to be clearer and also contain time between prints
+- Optional prints of average delay
+- Add print all option
+
 # Planned features
 - Linux support
 
 # To-Do
-- Adjust stability message to be clearer and also contain time between prints
-- Optional prints of average delay
-- Add print all option
 - Config available before first launch
 - Colored prints
 # Config options
 - Time between safety prints
-- Print all
-- Print average delay
