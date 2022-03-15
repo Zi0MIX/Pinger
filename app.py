@@ -1,3 +1,4 @@
+from distutils.log import debug
 import os, sys, getpass, re, subprocess
 from time import ctime, time, sleep
 from pythonping import ping
@@ -11,7 +12,7 @@ reg_reply = re.compile("Reply from")
 definitions = {
     "ping_freq": range(1, 301),
     "ping_threshold": range(1, 2000), # Exclude 2000 as that's the timeout code
-    "cfg_len": 4,
+    "cfg_len": 5,   # Change if config changes
     "forbidden_symbols": ["*", "?", "\"", "<", ">", "|"],
     "drive_letters": ["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 }
@@ -22,6 +23,7 @@ defaults = {
     "win_logfile_path": f"C:\\Users\\{user}\\Documents\\Pinger",
     "sleep": 2,
     "ping_threshold": 80.00,
+    "print_all": False,
 }
 
 errors = {
@@ -81,19 +83,31 @@ class Config:
     def verify_cfg(self):
         """Function will analyze config file and if it finds that the amount of lines doesn't match, it'll force default settings in the config. If it finds issues with logfile path, it'll attempt to fix it."""
         read_file = Config().read_cfg(1, return_all=True)
+        # print(self.path)
         with open(f"{self.path}\\config.cfg" , "w") as f:
             # print(f"len of cfg {len(Config().read_cfg(1, return_all=True))}")
             if len(read_file) != definitions["cfg_len"]:
                 print("Wrong lenght of the config. Generating a new one.")
                 f.write("")
+
+                # Format addresses
                 t_addresses = ""
                 for x in defaults["address_list"]:
                     t_addresses += f"{x} "
                 t_addresses = t_addresses[:-1]
+
+                # Format printall
+                if defaults["print_all"]:
+                    t_print_all = 1
+                else:
+                    t_print_all = 0
+
+                # Change if config changes
                 t_clean_cfg = f"""logfile_path = "{defaults["win_logfile_path"]}"
 addresses = "{t_addresses}"
 sleep = "{defaults["sleep"]}"
 ping_threshold = "{defaults["ping_threshold"]}"
+print_all = "{t_print_all}"
 """
                 f.write(t_clean_cfg)
                 f.close()
@@ -115,10 +129,12 @@ ping_threshold = "{defaults["ping_threshold"]}"
                     print("Error with logfile path detected. Attempting to fix.")
                     t_syspath = "C:" + check_for_drive_letter[1]
 
+                # Change if config changes
                 t_overwrite_cfg = f"""logfile_path = "{t_syspath}"
 addresses = "{read_file[1]}"
 sleep = "{read_file[2]}"
 ping_threshold = "{read_file[3]}"
+print_all = "{read_file[4]}"
 """
                 f.write(t_overwrite_cfg)
                 f.close()
@@ -131,6 +147,7 @@ ping_threshold = "{read_file[3]}"
         with open(f"{self.path}\\config.cfg" , "r", encoding="utf-8") as f:
             t_cfg = f.read()
             t_properties = read_arguments(t_cfg)
+            print(len(t_properties))
         if return_all:
             return t_properties
         return str(t_properties[read_line - 1])
@@ -142,7 +159,7 @@ def read_arguments(t_input, split1="\n", split2="\""):
     t_fulldata = str(t_input).split(split1)
     for x in t_fulldata:
         t_value = x.split(split2)
-        if len(t_value) != 3:
+        if len(t_value) != 3:   # Check for an empty line
             continue
         t_list.append(t_value[1])
     return t_list
@@ -191,7 +208,7 @@ def write_to_log(default_path, data):
 def analyze_response(response, ip_in, firewall, reg_args):
     """Function will analyze pings and return latency with an ip address."""
     arg = 2
-    if firewall:
+    if firewall or debug_mode:
         arg = 1
         
     if re.search(reg_args[1], response):
@@ -269,6 +286,7 @@ def checkup(t_time, t_wait=600):
 
 ##### CONFIGURATION #####
 
+debug_mode = False
 while True:
     use_config = ask("Would you like to use config file? (Y/N) ", errors['input'])
     if use_config:
@@ -383,7 +401,30 @@ while True:
                     print(errors['argument'])
         else:
             ping_threshold = defaults['ping_threshold']
-            
+
+    # Print All
+    if use_config:
+        wrong_value_in_cfg = False
+        try:
+            temp_do_print = int(Config().read_cfg(5))
+        except ValueError:
+            wrong_value_in_cfg = True
+
+        if temp_do_print not in [0, 1]:
+            wrong_value_in_cfg = True
+
+        if wrong_value_in_cfg:
+            do_print_all = defaults['print_all']
+            print("Inproper value in the config. Applying default 'print_all' value.")
+        else:
+            do_print_all = False
+            if temp_do_print == 1:
+                do_print_all = True
+        
+    else:
+        do_print_all = ask("Would you like to see all results even below set limit? (Y/N) ", errors['y/n input'])
+
+    # Final     
     if use_default_address:
         for x in defaults['address_list']:
             address_list.append(x)
@@ -417,50 +458,53 @@ print_timestamp = time()
 
 test_timeouts = []
 bruh = False
-print("Testing ...")
-while True:                     # Run a test through pipes to define if pings can even come out
-    firewall_ping = subprocess.Popen("ping 8.8.8.8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
-    firewall_pull = firewall_ping.communicate()
-    for x in firewall_pull:     # Analyze if 100% packet loss occured
-        if re.search(r"(100% loss)", x):
-            if not bruh:
-                bruh = True
-                sleep(2)
-                continue
-            test_success = False
+if not debug_mode:
+    print("Testing ...")
+    while not debug_mode:   # Run a test through pipes to define if pings can even come out
+        firewall_ping = subprocess.Popen("ping 8.8.8.8", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
+        firewall_pull = firewall_ping.communicate()
+        for x in firewall_pull:     # Analyze if 100% packet loss occured
+            if re.search(r"(100% loss)", x):
+                if not bruh:
+                    bruh = True
+                    sleep(2)
+                    continue
+                test_success = False
+                break
+        else:
+            test_success = True
             break
-    else:
-        test_success = True
-        break
 
-ip_id = 0
-for x in address_list:          # See if pings can get through using main method
-    a_ping = ping(x, verbose=False, count=1, payload="32")
-    analyzed = analyze_response(str(a_ping), address_list[ip_id], False, [reg_reply, reg_timeout])
-    ip_id += 1
+    ip_id = 0
+    for x in address_list:          # See if pings can get through using main method
+        a_ping = ping(x, verbose=False, count=1, payload="32")
+        analyzed = analyze_response(str(a_ping), address_list[ip_id], False, [reg_reply, reg_timeout])
+        ip_id += 1
 
-    if analyzed[1] > 999:
-        timed_out = True
-    else:
-        timed_out = False
-    test_timeouts.append(timed_out)
-    
-falses = 0                      # Review the results and ask user about methodology
-for x in test_timeouts:
-    if x:
-        falses += 1
+        if analyzed[1] > 999:
+            timed_out = True
+        else:
+            timed_out = False
+        test_timeouts.append(timed_out)
+        
+    falses = 0                      # Review the results and ask user about methodology
+    for x in test_timeouts:
+        if x:
+            falses += 1
 
-if falses < 4:
-    firewall_active = False
-else:                           # If it's determined firewall might be blocking the program, let user quit or agree to alternative method.
-    if test_success:
-        print("The program is most likely blocked by either local or network firewall.")
-        firewall_choice = ask("Would you like to continue using alternative method? (Y/N) ", errors['y/n input'])
-        if not firewall_choice:
-            sys.exit()
+    if falses < 4:
+        firewall_active = False
+    else:                           # If it's determined firewall might be blocking the program, let user quit or agree to alternative method.
+        if test_success:
+            print("The program is most likely blocked by either local or network firewall.")
+            firewall_choice = ask("Would you like to continue using alternative method? (Y/N) ", errors['y/n input'])
+            if not firewall_choice:
+                sys.exit()
 
-        print("Do note, alternative method may become unstable over long period of time, please monitor the program.")
-        firewall_active = True
+            print("Do note, alternative method may become unstable over long period of time, please monitor the program.")
+            firewall_active = True
+else:
+    firewall_active = True
 
 print("Pinging ...")
 print(f"Results will be saved in a log in {logfile_path}\\event log.txt")
@@ -469,9 +513,9 @@ while True:
     network_change = False
     did_print = False
     for x in address_list:      # Ping with either method and process the ping.
-        if not firewall_active:
+        if not firewall_active and not debug_mode:
             try:
-                a_ping = ping(x, verbose=False, count=1, payload="32")
+                a_ping = ping(x, verbose=do_print_all, count=1, payload="32")
             except OSError:
                 print("Network change detected. Waiting 15 seconds")
                 network_change = True
@@ -479,7 +523,12 @@ while True:
                 break
         else:
             ping_temp = subprocess.Popen(f"ping -n 1 {x}", stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf8")
-            a_ping = ping_temp.communicate()            
+            a_ping = ping_temp.communicate()
+            if do_print_all:
+                if a_ping[1] == "":     # Avoid error msg
+                    temp_data_from_pipe = str(a_ping[0]).split("\n")
+                    for x in temp_data_from_pipe:
+                        print(x)            
 
         analyzed = analyze_response(str(a_ping), address_list[ip_id], firewall_active, [reg_reply, reg_timeout])
         ip_id += 1
@@ -523,8 +572,9 @@ while True:
     time_outs = 0
     timed_out = False
 
-    checkup_out = checkup(print_timestamp)
-    if checkup_out[0]:
-        print_timestamp = checkup_out[1]
+    if not do_print_all:
+        checkup_out = checkup(print_timestamp)
+        if checkup_out[0]:
+            print_timestamp = checkup_out[1]
     
     sleep(ping_freq)
