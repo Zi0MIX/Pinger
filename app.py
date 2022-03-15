@@ -252,10 +252,16 @@ def add_one(t_number, last_time_timeout):
         return 0
 
 
-def checkup(t_time):
+def checkup(t_time, t_wait=600):
     """Function will make a print if nothing's been printed for last 10 minutes. It'll return True and a timestamp of the print. If print wasn't executed, function will return None."""
-    if time() >= t_time + 600:
-        print(f"{ctime()} the app is stable.")
+    readable_wait = t_wait * 60     # Convert to minutes
+    a_string = "minutes"
+    if t_wait < 120:                # Stay on seconds if it's less than 2 minutes
+        readable_wait = t_wait
+        a_string = "seconds"
+
+    if time() >= t_time + t_wait:
+        print(f"{ctime()} stability check - no prints for past {readable_wait} {a_string}.")
         return [True, time()]
     else:
         return [False, None]

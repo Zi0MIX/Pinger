@@ -15,3 +15,14 @@ An app to monitor network stability
 
 # Planned features
 - Linux support
+
+# To-Do
+- Adjust stability message to be clearer and also contain time between prints
+- Optional prints of average delay
+- Add print all option
+- Config available before first launch
+- Colored prints
+# Config options
+- Time between safety prints
+- Print all
+- Print average delay
