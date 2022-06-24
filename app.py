@@ -491,6 +491,7 @@ def main():
     print_timestamp = time()
     count_pings = 0
     ping_total = 0
+    results = []
 
     test_timeouts = []
     bruh = False
@@ -573,21 +574,20 @@ def main():
                 input("Press ENTER to close the program")
                 sys.exit()
 
+            results.append(int(analyzed[1]))
+
             if print_averages:
-                if count_pings > 999999:
-                    print("Resetting average calculator.")
-                    count_pings = 0
-                    ping_total = 0
-                count_pings += 1
-                ping_total += int(analyzed[1])  # It's a float, change to int
-                ping_average = ping_total // count_pings
+                if len(results) > 10000:
+                    new_results = results[-10000:]
+                    results = new_results     
+                ping_average = sum(results) // len(results)
             else:
                 ping_average = 0
             
             if analyzed[1] >= ping_threshold:   # Print and log high ping / timeout events
                 if analyzed[1] < 2000:
                     print(f"Ping higher than {ping_threshold} to {analyzed[0]} at {ctime()} is {analyzed[1]}ms.")
-                    data = (f"""{ctime()} Ping to {analyzed[0]} is {analyzed[1]}ms.\n""")
+                    data = (f"""{ctime()} - Ping to {analyzed[0]} is {analyzed[1]}ms ({round(analyzed[1] - ping_threshold, 1)} over threshold).\n""")
                     write_to_log(logfile_path, data)
                     if analyzed[1] >= 1000:
                         timed_out = True
@@ -595,7 +595,7 @@ def main():
                         timed_out = False
                 else:
                     print(f"Ping to {analyzed[0]} at {ctime()} timed out.")
-                    data = (f"""{ctime()} Ping to {analyzed[0]} timed out.\n""")
+                    data = (f"""{ctime()} - Ping to {analyzed[0]} timed out.\n""")
                     write_to_log(logfile_path, data)
                     timed_out = True
 
