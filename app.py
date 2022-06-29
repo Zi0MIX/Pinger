@@ -301,7 +301,6 @@ def main():
 
     address_list = []
     custom_address_list = []
-    user = getpass.getuser()
     reg_timeout = re.compile("Request timed out")
     reg_reply = re.compile("Reply from")
     defaults = get_defaults()
